@@ -133,7 +133,7 @@ ps.selectPathProjector ("Progressive", .05)
 ps.selectPathValidation("Graph-Progressive", 0.01)
 vf = ViewerFactory(ps)
 vf.loadEnvironmentModel (Ground, 'ground')
-vf.loadObjectModel  (Box, 'box')
+vf.loadEnvironmentModel  (Box, 'box')    #as object because later need to use its link
 
 #vf.loadObjectModel (Bin, 'part')
 
@@ -223,53 +223,105 @@ def createFreeRxConstraintForHandle(handle):
 
 ## Build constraint graph
 def createConstraintGraph():
-    all_handles = ps.getAvailable('handle')
-    part_handles = list(filter(lambda x: x.startswith("part/"), all_handles))
-    objContactSurfaces =[['part/bottom',]]
+    #all_handles = ps.getAvailable('handle')
+    #part_handles = list(filter(lambda x: x.startswith("part/"), all_handles))
+    #objContactSurfaces =[['part/bottom',]]
     #envSurfaces=['box/box_surface','ground/surface']
 
 
     graph = ConstraintGraph(robot, 'graph2')
     #rules = [Rule ([""], [""], True)]
     factory = ConstraintGraphFactory(graph)
-    factory.setGrippers(["ur10e/gripper",])
+    #factory.setGrippers(["ur10e/gripper",])
     #factory.environmentContacts (envSurfaces)
-    factory.setObjects(['part',], [part_handles],objContactSurfaces )
+    #factory.setObjects(['part',], [part_handles],objContactSurfaces )
     #factory.setRules (rules)
-    factory.generate()
-    print('factory.handle',factory.handles)
+    #factory.generate()
+    """ print('factory.handle',factory.handles)
     print('all_handles ',all_handles )
-    print('part_handles',part_handles)
+    print('part_handles',part_handles) """
+    
+    
+    #Constraint by hand,because the pose of part is offered by vision system so do not need placement constraint
+    
+    graph.createNode(['intersec'],priority = 2)
+    graph.createNode(['preplace'],priority = 2)
+    graph.createNode(['pregrasp'],priority = 2)
+    graph.createNode(['free'],priority = 1)
+    graph.createNode(['grasps'],priority = 1)
+    graph.createNode(['vertical'],priority = 1)
+
+    graph.createEdge ('free', 'pregrasp', 'approach-part', 1, 'free')
+    graph.createEdge ('pregrasp', 'free', 'move-gripper-away', 1, 'free')
+    graph.createEdge ('pregrasp', 'intersec', 'grasp-part', 1, 'free')
+    graph.createEdge ('intersec', 'pregrasp', 'move-gripper-up', 1, 'free')
+    graph.createEdge ('intersec', 'preplace', 'take-part-up', 1, 'grasps')
+    graph.createEdge ('preplace', 'intersec', 'put-part-down', 1, 'grasps')
+    graph.createEdge ('preplace', 'grasps', 'take-part-away', 1, 'grasps')
+    graph.createEdge ('grasps', 'preplace', 'approach-box', 1, 'grasps')
+    graph.createEdge ('free', 'free', 'transit', 1, 'free')
+    graph.createEdge ('grasps', 'grasps', 'transfer', 1, 'grasps')
+    ps.createTransformationConstraint ('grasp', 'ur10e/gripper', 'part/handle_link',
+                                   [0.02,0,0.0,0, 0, 0, 1],
+                                   6*[True])
+    ps.createTransformationConstraint ('part-above-box','part/base_link','',
+                                   [0,0,-0.35,0, 0, 0, 1],
+                                   [False, False, True, True, True,False])
+    ps.createTransformationConstraint ('placement/complement', '','part/base_link',
+                                   [0,0,0,0, 0, 0, 1],
+                                   [True, True,True, True,True, True,])
+    ps.setConstantRightHandSide('placement/complement', False)
+    ps.createTransformationConstraint ('part-vertical', 'part/base_link','',
+                                   [0,0,0.095,0, 0, 0, 1],
+                                   [True, True, False, True,True,True,])
+    ps.setConstantRightHandSide ('part-vertical', False) 
+    ps.createTransformationConstraint ('gripper-above-part', 'ur10e/gripper', 'part/handle_link',
+                                   [0.2,0,0,0,0,0,1], 6*[True,])    ##x y z w
+    ps.createTransformationConstraint ('vertical','part/base_link','',
+                                   [0,0,-0.35,0, 0, 0, 1],
+                                   [False, False, False, True, True, False])
+    ps.createTransformationConstraint ('gripper-vertical', 'ur10e/gripper', '',
+                                   [0.2,0,0,0,0,0,1], [True, True,False, True, True, False,])
+    ps.setConstantRightHandSide('gripper-vertical', False)
+
+    #Node constraints
+    graph.addConstraints(node='vertical',
+                        constraints = Constraints(numConstraints=['vertical']))  
+    graph.addConstraints(node='preplace',
+                        constraints = Constraints(numConstraints=['part-above-box','grasp']))
+   
+    graph.addConstraints (node='intersec',
+                      constraints = Constraints (numConstraints = ['grasp','vertical']))
+    graph.addConstraints (node='pregrasp',
+                      constraints = Constraints (numConstraints = ['gripper-above-part']))
+    graph.addConstraints (node='grasps',
+                      constraints = Constraints (numConstraints = ['grasp']))
+    """  graph.addConstraints (node='free',
+                      constraints = Constraints (numConstraints = ['vertical'])) """ 
+    #make part extrem vertical fix bug of 'take-part-up',because node 'part-above-box'ask for vertical,make it reachable
+
+    #Edge constraints
+    graph.addConstraints (edge='transit', constraints = \
+                      Constraints (numConstraints = ['placement/complement']))
+    graph.addConstraints (edge='approach-part', constraints = \
+                      Constraints (numConstraints = ['placement/complement']))  ##dont want the pos of ball change  
+    graph.addConstraints (edge='move-gripper-away', constraints = \
+                      Constraints (numConstraints = ['placement/complement']))
+    graph.addConstraints (edge='grasp-part', constraints = \
+ 	                     Constraints (numConstraints = ['placement/complement']))
+    graph.addConstraints (edge='move-gripper-up', constraints = \
+ 	                     Constraints (numConstraints = ['placement/complement']))
+    graph.addConstraints (edge='take-part-up', constraints = \
+ 	                     Constraints (numConstraints = ['part-vertical']))
+    graph.addConstraints (edge='put-part-down', constraints = \
+ 	                     Constraints (numConstraints = ['part-vertical']))
 
 
+   ###need to have two group of constraints?
+   #############
 
     n = norm([-0.576, -0.002, 0.025, 0.817])
-    ps.createTransformationConstraint('look-at-part', 'part/base_link', 'ur10e/wrist_3_link',
-                                    [-0.126, -0.611, 1.209, -0.576/n, -0.002/n, 0.025/n, 0.817/n],
-                                    [True, True, True, True, True, True,])
-    graph.createNode(['look-at-part'])
-    graph.createEdge('free', 'look-at-part', 'go-look-at-part', 1, 'free')
-    graph.createEdge('look-at-part', 'free', 'stop-looking-at-part', 1, 'free')
-
-    graph.addConstraints(node='look-at-part',
-                        constraints = Constraints(numConstraints=['look-at-part']))
-    ps.createTransformationConstraint('placement/complement', '','part/base_link',
-                                    [0,0,0,0, 0, 0, 1],
-                                    [True, True, True, True, True, True,])
-
-    ps.setConstantRightHandSide('placement/complement', False)
-
-    graph.addConstraints(edge='go-look-at-part',
-                        constraints = Constraints(numConstraints=\
-                                                ['placement/complement']))
-    graph.addConstraints(edge='stop-looking-at-part',
-                        constraints = Constraints(numConstraints=\
-                                                ['placement/complement']))
-    ps.createTransformationConstraint ('place', '', 'part/base_link',
-                                   [0,0,0.02,0, 0, 0, 1],
-                                   [False, False, True, True, True, False])
-    graph.addConstraints(node='free',
-                        constraints = Constraints(numConstraints=['place']))
+    
     sm = SecurityMargins(ps, factory, ["ur10e", "part"])
     sm.setSecurityMarginBetween("ur10e", "part", 0.015)
     sm.setSecurityMarginBetween("ur10e", "ur10e", 0)
@@ -281,7 +333,6 @@ def createConstraintGraph():
         if e[-3:] == "_ls" and graph.getWeight(e) != -1:
             graph.setWeight(e, 0)
     return graph
-
 
 
 graph = createConstraintGraph()
@@ -299,7 +350,7 @@ q_init = ri.getCurrentConfig(q0)
 print("q_int",q_init)
 # q_init = q0 #robot.getCurrentConfig()
 pg = PathGenerator(ps, graph, ri, v, q_init)
-pg.inStatePlanner.setEdge('Loop | f')
+#pg.inStatePlanner.setEdge('Loop | f')
 pg.testGraph()
 NB_holes = 5 * 7
 NB_holes_total = 44
@@ -490,7 +541,7 @@ for i in range(len(part_world)):
     conf = neutral_pose + part_world[i]
     go.append(conf)
     v(conf)
-    time.sleep(2)
+    time.sleep(0.5)
 
 """ neutral_pose = [0, -pi/2, 0.89*pi,-pi/2, -pi, 0.5]
 bin_des =  [0.6,0.5,0.00003,0,0,0,1]
@@ -522,7 +573,7 @@ graph.setWeight('ur10e/gripper < part/handle_00 | 0-0',1)
 graph.setWeight('ur10e/gripper > part/handle_00 | f',1) """
 ps.setTimeOutPathPlanning(30)
 
-for i in range(len(go)):
+""" for i in range(len(go)):
     res1 = ps.client.manipulation.problem.applyConstraints(graph.nodes['free'],go[i])
     if not res1[0]:
         raise Exception ('Init configuration %s could not be projected.' % i)
@@ -535,7 +586,7 @@ for i in range(len(go)):
 Nb_path = ps.numberPaths()
 for i in range(1,Nb_path):
     if i%4== 0:
-        ps.concatenatePath(0,i)  
+        ps.concatenatePath(0,i)   """
 
 
 
@@ -557,3 +608,37 @@ end = res3[1]
 ps.setInitialConfig(go)
 ps.resetGoalConfigs()
 ps.addGoalConfig(end) """
+
+
+from agimus_demos import InStatePlanner
+inStatePlanner = InStatePlanner(ps, graph)
+inStatePlanner.maxIterPathPlanning = 300
+
+###
+## generate target
+edge = ['approach-part','grasp-part','take-part-up','take-part-away']
+q_goal = []
+res,res2 = False,False
+while not (res and res2[0]):
+    q = robot.shootRandomConfig ()
+    res,q1,err = graph.applyNodeConstraints ('vertical', go[4])
+    res2 = robot.isConfigValid (q1)
+res,res2 = False,False
+while not (res and res2[0]):
+    q = robot.shootRandomConfig ()
+    res,q2,err = graph.applyNodeConstraints ('free', q1)
+    res2 = robot.isConfigValid (q2)
+q_goal.append(q2)
+
+for i in range(len(edge)) :
+    res,res2 = False,False
+    while not (res and res2[0]):
+        q = robot.shootRandomConfig ()
+        res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q)
+        res2 = robot.isConfigValid (q1)
+    q_goal.append(q1)
+###path
+
+for i in range(len(edge)):
+    inStatePlanner.setEdge(edge[i])
+    inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])

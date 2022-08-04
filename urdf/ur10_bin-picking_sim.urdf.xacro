@@ -60,21 +60,7 @@
          iyy="0.001" iyz="0.0"
          izz="0.001" />
      </inertial>
-     <visual>
-       <origin xyz="0 0 0" rpy="0 0 0" />
-       <geometry>
-         <mesh filename="package://agimus_demos/meshes/ur10e_d435_mount.stl"/>
-       </geometry>
-       <material name="Red">
-         <color rgba="0.9 0.1 0.1 1.0"/>
-       </material>
-     </visual>
-     <collision>
-       <origin xyz="0 0 0" rpy="0 0 0" />
-       <geometry>
-         <mesh filename="package://agimus_demos/meshes/ur10e_d435_mount.stl"/>
-       </geometry>
-     </collision>
+     
    </link>
 
    <joint name="ur10e_d435_mount_joint" type="fixed">
@@ -135,11 +121,6 @@
 	     rpy="-0.00127120646 -1.00435876 -1.56137241"/>
    </joint>
 
-   <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro" />
 
-   <xacro:sensor_d435 parent="ref_camera_link" name="camera" use_nominal_extrinsics="true">
-     <!-- <origin xyz="0 0.115 0" rpy="0 -1.0472 -1.57079632679"/> -->
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-   </xacro:sensor_d435>
 
 </robot>
