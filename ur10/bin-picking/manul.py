@@ -25,6 +25,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from http.client import REQUESTED_RANGE_NOT_SATISFIABLE
+from importlib.resources import path
 import sys, argparse, numpy as np, time, rospy
 from turtle import forward
 from math import pi, sqrt
@@ -163,7 +164,7 @@ if UseAprilTagPlank:
 else:
     Part = Bin
 vf.loadObjectModel (Part, "part")
-robot.setJointBounds('part/root_joint', [0.0, 1.1, -0.8 ,1, -0.05, 0.8])
+robot.setJointBounds('part/root_joint', [-6,6, -6 ,6, -0.05, 8])
 print("Part loaded")
 
 
@@ -249,7 +250,7 @@ def createConstraintGraph():
     graph.createNode(['pregrasp'],priority = 2)
     graph.createNode(['free'],priority = 1)
     graph.createNode(['grasps'],priority = 1)
-    graph.createNode(['vertical'],priority = 1)
+    graph.createNode(['vertical'],priority = 0)
 
     graph.createEdge ('free', 'pregrasp', 'approach-part', 1, 'free')
     graph.createEdge ('pregrasp', 'free', 'move-gripper-away', 1, 'free')
@@ -273,10 +274,10 @@ def createConstraintGraph():
     ps.setConstantRightHandSide('placement/complement', False)
     ps.createTransformationConstraint ('part-vertical', 'part/base_link','',
                                    [0,0,0.095,0, 0, 0, 1],
-                                   [True, True, False, True,True,True,])
+                                   [True, True, False, True,True,False,])
     ps.setConstantRightHandSide ('part-vertical', False) 
     ps.createTransformationConstraint ('gripper-above-part', 'ur10e/gripper', 'part/handle_link',
-                                   [0.2,0,0,0,0,0,1], 6*[True,])    ##x y z w
+                                   [0.18,0,0,0,0,0,1], 6*[True,])    ##x y z w
     ps.createTransformationConstraint ('vertical','part/base_link','',
                                    [0,0,-0.35,0, 0, 0, 1],
                                    [False, False, False, True, True, False])
@@ -286,17 +287,17 @@ def createConstraintGraph():
 
     #Node constraints
     graph.addConstraints(node='vertical',
-                        constraints = Constraints(numConstraints=['vertical']))  
+                        constraints = Constraints(numConstraints=['vertical'])) 
     graph.addConstraints(node='preplace',
                         constraints = Constraints(numConstraints=['part-above-box','grasp']))
    
     graph.addConstraints (node='intersec',
-                      constraints = Constraints (numConstraints = ['grasp','vertical']))
+                      constraints = Constraints (numConstraints = ['grasp']))
     graph.addConstraints (node='pregrasp',
                       constraints = Constraints (numConstraints = ['gripper-above-part']))
     graph.addConstraints (node='grasps',
                       constraints = Constraints (numConstraints = ['grasp']))
-    """  graph.addConstraints (node='free',
+    """ graph.addConstraints (node='free',
                       constraints = Constraints (numConstraints = ['vertical'])) """ 
     #make part extrem vertical fix bug of 'take-part-up',because node 'part-above-box'ask for vertical,make it reachable
 
@@ -326,7 +327,7 @@ def createConstraintGraph():
     sm.setSecurityMarginBetween("ur10e", "part", 0.015)
     sm.setSecurityMarginBetween("ur10e", "ur10e", 0)
     sm.defaultMargin = 0.01
-    sm.apply()
+    #sm.apply()
     graph.initialize()
     # Set weights of levelset edges to 0
     for e in graph.edges.keys():
@@ -618,27 +619,54 @@ inStatePlanner.maxIterPathPlanning = 300
 ## generate target
 edge = ['approach-part','grasp-part','take-part-up','take-part-away']
 q_goal = []
-res,res2 = False,False
+res = False
+res2 = [False]
 while not (res and res2[0]):
     q = robot.shootRandomConfig ()
     res,q1,err = graph.applyNodeConstraints ('vertical', go[4])
-    res2 = robot.isConfigValid (q1)
+    res2 = robot.isConfigValid (q1) 
 res,res2 = False,False
 while not (res and res2[0]):
     q = robot.shootRandomConfig ()
     res,q2,err = graph.applyNodeConstraints ('free', q1)
     res2 = robot.isConfigValid (q2)
 q_goal.append(q2)
-
 for i in range(len(edge)) :
-    res,res2 = False,False
-    while not (res and res2[0]):
-        q = robot.shootRandomConfig ()
-        res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q)
-        res2 = robot.isConfigValid (q1)
-    q_goal.append(q1)
+    path = False
+    while not path:
+        q1 = robot.shootRandomConfig ()
+        res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q1)
+        if not res: continue
+        res = robot.isConfigValid (q1)
+        if not res: continue
+        inStatePlanner.setEdge(edge[i])
+        pv = inStatePlanner.cproblem.getPathValidation()
+        res, msg = pv.validateConfiguration(q_goal[i])
+        if not res: continue
+        res, msg = pv.validateConfiguration(q1)
+        if not res:continue
+        try:
+            inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
+        except:
+            print('no path this time')
+        else: 
+            q_goal.append(q1) 
+            path = True
+            print('find path for edge %d'%(i))
 ###path
-
-for i in range(len(edge)):
+""" for i in range(len(edge)):
     inStatePlanner.setEdge(edge[i])
+    pv = inStatePlanner.cproblem.getPathValidation()
+    res, msg = pv.validateConfiguration(q_goal[i])
+    assert(res)
+    res, msg = pv.validateConfiguration(q_goal[i+1])
+    assert(res)
     inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
+
+for i in range(5):
+    print(i)
+    for j in range(8):
+        
+        if j==5:
+            continue
+        print(j)       """
