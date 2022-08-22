@@ -27,6 +27,7 @@
 from http.client import REQUESTED_RANGE_NOT_SATISFIABLE
 from importlib.resources import path
 import sys, argparse, numpy as np, time, rospy
+from unicodedata import name
 from turtle import forward
 from math import pi, sqrt
 from hpp import Transform
@@ -74,6 +75,11 @@ class Ground:
 class Box:
     urdfFilename = "package://agimus_demos/urdf/box.urdf"
     srdfFilename = "package://agimus_demos/srdf/box.srdf"
+    rootJointType = "anchor"
+
+class Lip:
+    urdfFilename = "package://agimus_demos/urdf/lip.urdf"
+    srdfFilename = "package://agimus_demos/srdf/lip.srdf"
     rootJointType = "anchor"
 
 # parse arguments
@@ -135,8 +141,9 @@ ps.selectPathValidation("Graph-Progressive", 0.01)
 vf = ViewerFactory(ps)
 vf.loadEnvironmentModel (Ground, 'ground')
 vf.loadEnvironmentModel  (Box, 'box')    #as object because later need to use its link
+#vf.loadObjectModel  (Lip, 'lip')
 
-#vf.loadObjectModel (Bin, 'part')
+
 
 ## Shrink joint bounds of UR-10
 #
@@ -166,6 +173,8 @@ else:
 vf.loadObjectModel (Part, "part")
 robot.setJointBounds('part/root_joint', [-6,6, -6 ,6, -0.05, 8])
 print("Part loaded")
+
+vf.loadObjectModel (Lip, 'lid')###change the name.
 
 
 robot.client.manipulation.robot.insertRobotSRDFModel\
@@ -245,12 +254,12 @@ def createConstraintGraph():
     
     #Constraint by hand,because the pose of part is offered by vision system so do not need placement constraint
     
-    graph.createNode(['intersec'],priority = 2)
-    graph.createNode(['preplace'],priority = 2)
+    graph.createNode(['intersec'],priority = 2 )
+    graph.createNode(['preplace'],priority = 3)
     graph.createNode(['pregrasp'],priority = 2)
     graph.createNode(['free'],priority = 1)
-    graph.createNode(['grasps'],priority = 1)
-    graph.createNode(['vertical'],priority = 0)
+    graph.createNode(['grasps'],priority = 2)
+    #graph.createNode(['vertical'],priority = 0)
 
     graph.createEdge ('free', 'pregrasp', 'approach-part', 1, 'free')
     graph.createEdge ('pregrasp', 'free', 'move-gripper-away', 1, 'free')
@@ -264,30 +273,30 @@ def createConstraintGraph():
     graph.createEdge ('grasps', 'grasps', 'transfer', 1, 'grasps')
     ps.createTransformationConstraint ('grasp', 'ur10e/gripper', 'part/handle_link',
                                    [0.02,0,0.0,0, 0, 0, 1],
-                                   6*[True])
+                                   [True, True, True, False,True,True])
     ps.createTransformationConstraint ('part-above-box','part/base_link','',
                                    [0,0,-0.35,0, 0, 0, 1],
-                                   [False, False, True, True, True,False])
+                                   [False, False, True, False, False,False])
     ps.createTransformationConstraint ('placement/complement', '','part/base_link',
                                    [0,0,0,0, 0, 0, 1],
                                    [True, True,True, True,True, True,])
     ps.setConstantRightHandSide('placement/complement', False)
-    ps.createTransformationConstraint ('part-vertical', 'part/base_link','',
+    ps.createTransformationConstraint ('movement-vertical', 'part/base_link','',
                                    [0,0,0.095,0, 0, 0, 1],
-                                   [True, True, False, True,True,False,])
-    ps.setConstantRightHandSide ('part-vertical', False) 
+                                   [True, True, False, True,True,True,])
+    ps.setConstantRightHandSide ('movement-vertical', False) 
     ps.createTransformationConstraint ('gripper-above-part', 'ur10e/gripper', 'part/handle_link',
-                                   [0.18,0,0,0,0,0,1], 6*[True,])    ##x y z w
-    ps.createTransformationConstraint ('vertical','part/base_link','',
-                                   [0,0,-0.35,0, 0, 0, 1],
-                                   [False, False, False, True, True, False])
-    ps.createTransformationConstraint ('gripper-vertical', 'ur10e/gripper', '',
-                                   [0.2,0,0,0,0,0,1], [True, True,False, True, True, False,])
-    ps.setConstantRightHandSide('gripper-vertical', False)
+                                   [0.18,0,0,0,0,0,1], [True,True,True,False,True,True])    ##x y z w
+    #ps.createTransformationConstraint ('vertical','part/base_link','',
+     #                              [0,0,-0.35,0, 0, 0, 1],
+      #                             [False, False, False, True, True, False])
+    ps.createTransformationConstraint ('gripper-vertical', 'ur10e/gripper', 'part/handle_link',
+                                   [0.2,0,0,0,0,0,1], [False, True,True, False, True, True,])
+    #ps.setConstantRightHandSide('gripper-vertical', False)
 
     #Node constraints
-    graph.addConstraints(node='vertical',
-                        constraints = Constraints(numConstraints=['vertical'])) 
+    #graph.addConstraints(node='vertical',
+                       # constraints = Constraints(numConstraints=['vertical'])) 
     graph.addConstraints(node='preplace',
                         constraints = Constraints(numConstraints=['part-above-box','grasp']))
    
@@ -297,8 +306,8 @@ def createConstraintGraph():
                       constraints = Constraints (numConstraints = ['gripper-above-part']))
     graph.addConstraints (node='grasps',
                       constraints = Constraints (numConstraints = ['grasp']))
-    """ graph.addConstraints (node='free',
-                      constraints = Constraints (numConstraints = ['vertical'])) """ 
+    #graph.addConstraints (node='free',
+     #                 constraints = Constraints (numConstraints = ['vertical']))
     #make part extrem vertical fix bug of 'take-part-up',because node 'part-above-box'ask for vertical,make it reachable
 
     #Edge constraints
@@ -309,16 +318,13 @@ def createConstraintGraph():
     graph.addConstraints (edge='move-gripper-away', constraints = \
                       Constraints (numConstraints = ['placement/complement']))
     graph.addConstraints (edge='grasp-part', constraints = \
- 	                     Constraints (numConstraints = ['placement/complement']))
+ 	                     Constraints (numConstraints = ['placement/complement','gripper-vertical']))
     graph.addConstraints (edge='move-gripper-up', constraints = \
- 	                     Constraints (numConstraints = ['placement/complement']))
+ 	                     Constraints (numConstraints = ['placement/complement','gripper-vertical']))
     graph.addConstraints (edge='take-part-up', constraints = \
- 	                     Constraints (numConstraints = ['part-vertical']))
+ 	                     Constraints (numConstraints = ['movement-vertical']))
     graph.addConstraints (edge='put-part-down', constraints = \
- 	                     Constraints (numConstraints = ['part-vertical']))
-
-
-   ###need to have two group of constraints?
+ 	                     Constraints (numConstraints = ['movement-vertical']))
    #############
 
     n = norm([-0.576, -0.002, 0.025, 0.817])
@@ -326,8 +332,18 @@ def createConstraintGraph():
     sm = SecurityMargins(ps, factory, ["ur10e", "part"])
     sm.setSecurityMarginBetween("ur10e", "part", 0.015)
     sm.setSecurityMarginBetween("ur10e", "ur10e", 0)
+    sm.setSecurityMarginBetween("ur10e", "lip", 0.05)
     sm.defaultMargin = 0.01
-    #sm.apply()
+    sm.apply() # try
+    ##deactive collision between "lip" and"tool_tip_link"
+    cproblem = wd(ps.client.basic.problem.getProblem())
+    cgraph = wd(cproblem.getConstraintGraph())
+    all_name = list(graph.edges.keys())
+    edge_margin =  ['approach-box','put-part-down','move-gripper-up','transfer']
+    name =  [i for i in all_name if i not in edge_margin]
+    """     for i in name:
+        cedge = wd(cgraph.get(graph.edges[name]))
+        cedge.setSecurityMarginForPair(8+1, 9+1,float('-inf'))  """
     graph.initialize()
     # Set weights of levelset edges to 0
     for e in graph.edges.keys():
@@ -610,51 +626,234 @@ ps.setInitialConfig(go)
 ps.resetGoalConfigs()
 ps.addGoalConfig(end) """
 
-go = [[0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 1.0432209178713296, 0.20583790467945282, 0.2522109607843137, 0.010857436013281468, -0.007109644686263878, 0.99955548479711, -0.026840302674650103], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 1.0426075142635602, 0.028049295747804535, 0.25237582352941174, 0.017230991582646883, -0.0030211363131261966, 0.999758171303341, -0.013325335892780057], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 1.0397627870322104, -0.1266349005619249, 0.2505982156862745, 0.01367315419487967, -0.01359126426655792, 0.9995505107663977, -0.02295863272568867], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9296967464201046, 0.2067981065192473, 0.25364501960784314, 0.004667391514166578, -0.006208225942286833, 0.9999081748890755, -0.011104736696600913], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9278283302527075, -0.1286156436428715, 0.25210409803921563, 0.007780960745240349, -0.014421554984323032, 0.999759562753898, -0.014570246526740528], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.8232787691260659, 0.21042481641773064, 0.25378105882352936, 0.000648084977482323, -0.007518255527237134, 0.9999302406011185, -0.009086789921561894], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.822255898222331, 0.04135489357405592, 0.25374954901960783, -0.003596721462689725, -0.004919289131052951, 0.9997276271867958, -0.022528551409800462], [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.820149912691993, -0.12245399632326899, 0.2522424901960784, 0.00021183661483716693, -0.013426393636156594, 0.9998216893511835, -0.013276919150201618]]
+go = [[0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0432209178713296, 0.20583790467945282, 0.2522109607843137, 0.010857436013281468, -0.007109644686263878, 0.99955548479711, -0.026840302674650103], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0426075142635602, 0.028049295747804535, 0.25237582352941174, 0.017230991582646883, -0.0030211363131261966, 0.999758171303341, -0.013325335892780057], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0397627870322104, -0.1266349005619249, 0.2505982156862745, 0.01367315419487967, -0.01359126426655792, 0.9995505107663977, -0.02295863272568867], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9296967464201046, 0.2067981065192473, 0.25364501960784314, 0.004667391514166578, -0.006208225942286833, 0.9999081748890755, -0.011104736696600913], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9278283302527075, -0.1286156436428715, 0.25210409803921563, 0.007780960745240349, -0.014421554984323032, 0.999759562753898, -0.014570246526740528], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.8232787691260659, 0.21042481641773064, 0.25378105882352936, 0.000648084977482323, -0.007518255527237134, 0.9999302406011185, -0.009086789921561894], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.822255898222331, 0.04135489357405592, 0.25374954901960783, -0.003596721462689725, -0.004919289131052951, 0.9997276271867958, -0.022528551409800462], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.820149912691993, -0.12245399632326899, 0.2522424901960784, 0.00021183661483716693, -0.013426393636156594, 0.9998216893511835, -0.013276919150201618]]
 from agimus_demos import InStatePlanner
 inStatePlanner = InStatePlanner(ps, graph)
-inStatePlanner.maxIterPathPlanning = 300
+inStatePlanner.maxIterPathPlanning = 66
+inStatePlanner.optimizerTypes = ['SimpleTimeParameterization']
+#inStatePlanner.plannerType  = 'M-RRT'
 
 ###
 ## generate target
+##def inStatePlanner(go,q_final):
 edge = ['approach-part','grasp-part','take-part-up','take-part-away']
-q_goal = []
-res = False
-res2 = [False]
-while not (res and res2[0]):
-    q = robot.shootRandomConfig ()
-    res,q1,err = graph.applyNodeConstraints ('vertical', go[4])
-    res2 = robot.isConfigValid (q1) 
-res,res2 = False,False
-while not (res and res2[0]):
-    q = robot.shootRandomConfig ()
-    res,q2,err = graph.applyNodeConstraints ('free', q1)
-    res2 = robot.isConfigValid (q2)
-q_goal.append(q2)
-for i in range(len(edge)) :
-    path = False
-    while not path:
-        q1 = robot.shootRandomConfig ()
-        res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q1)
-        if not res: continue
-        res = robot.isConfigValid (q1)
-        if not res: continue
-        inStatePlanner.setEdge(edge[i])
-        pv = inStatePlanner.cproblem.getPathValidation()
-        res, msg = pv.validateConfiguration(q_goal[i])
-        if not res: continue
-        res, msg = pv.validateConfiguration(q1)
-        if not res:continue
-        try:
-            inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
-        except:
-            print('no path this time')
-        else: 
-            q_goal.append(q1) 
-            path = True
-            print('find path for edge %d'%(i))
+
+q_final = [0, -1.5707963267948966, 2.0, -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.8, 0.05, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666]
+###The function uses inStatePlanner to generate path followes given state and edge,at last get concatenated path PID 0
+def instatePath(q_start,q_final):
+    q_goal = []
+    edge = ['approach-part','grasp-part','take-part-up','take-part-away']
+    res = False    
+    res2 = [False]
+    while not (res and res2[0]):
+        q = robot.shootRandomConfig ()
+        res,q2,err = graph.applyNodeConstraints ('free', q_start)
+        res2 = robot.isConfigValid (q2)
+    q_goal.append(q2)
+    for i in range(len(edge)) :
+        path = False
+        res =  False
+        while not path:
+            
+            print('new start',i)
+            q1 = robot.shootRandomConfig ()
+            res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q1)
+            if not res: continue
+            res = robot.isConfigValid (q1)
+            if not res: continue
+            inStatePlanner.setEdge(edge[i])
+            pv = inStatePlanner.cproblem.getPathValidation()
+            res, msg = pv.validateConfiguration(q_goal[i])
+            if not res: continue
+            res, msg = pv.validateConfiguration(q1)
+            if not res:continue
+            print(q1)
+            v(q1)
+            try:
+                Path = inStatePlanner.computePath(q_goal[i],[q1])
+            except Exception as e:
+                print('no path this time',e)
+            else:
+                #Path =  inStatePlanner.optimizePath(Path)
+                q_goal.append(q1) 
+                #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
+                print(q_goal)
+                path = True
+                vector  = Path.asVector()
+                pid = ps.client.basic.problem.addPath(vector)
+                print('find path for edge %d'%(i))
+        if i ==3:
+            """ res = False
+            res2 = [False]
+            while not (res and res2[0]):
+                q = robot.shootRandomConfig ()
+                res,q1,err = graph.applyNodeConstraints ('vertical', q_final)
+                res2 = robot.isConfigValid (q1) """ 
+            res = False
+            res2 = [False]
+            while not (res and res2[0]):
+                q = robot.shootRandomConfig ()
+                res,q2,err = graph.applyNodeConstraints ('free', q_final)
+                res2 = robot.isConfigValid (q2)
+            q_goal.append(q2)   
+            for j in range(len(edge)) :
+                path = False
+                res =  False
+                while not path:
+                    #if j != 3: not robust
+            
+                        print('new start for second part',j)
+                        q1 = robot.shootRandomConfig ()
+                        res,q1,err = graph.generateTargetConfig (edge[j], q_goal[j+5],q1)
+                        if not res: continue
+                        res = robot.isConfigValid (q1)
+                        if not res: continue
+                        inStatePlanner.setEdge(edge[j])
+                        pv = inStatePlanner.cproblem.getPathValidation()
+                        res, msg = pv.validateConfiguration(q_goal[j+5])
+                        if not res: continue
+                        res, msg = pv.validateConfiguration(q1)
+                        if not res:continue
+                        print(q1)
+                        v(q1)
+                        try:
+                            Path = inStatePlanner.computePath(q_goal[j+5],[q1])
+                        except Exception as e:
+                            print('no path this time',e)
+                        else: 
+                        #Path = inStatePlanner.optimizePath(Path)
+                            q_goal.append(q1) 
+                #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
+                            print(q_goal)
+                            path = True
+                            Path = Path.reverse()
+                            vector  = Path.asVector()
+                            pid = ps.client.basic.problem.addPath(vector)
+                            print('find path for edge %d'%(j))
+            inStatePlanner.setEdge('transfer')
+            Path = inStatePlanner.computePath(q_goal[4],[q_goal[9]])
+                            #Path = inStatePlanner.optimizePath(Path)
+            vector  = Path.asVector()
+            pid = ps.client.basic.problem.addPath(vector)
+            list = [i for i in range(1,9)]
+            list[3:8] =list[7:2:-1]
+            for i in list:
+                ps.client.basic.problem.concatenatePath(0,i)
+    """ res2 = [False]
+    while not (res and res2[0]):
+        q = robot.shootRandomConfig ()
+        res,q1,err = graph.applyNodeConstraints ('vertical', go[4])
+        res2 = robot.isConfigValid (q1) 
+    res,res2 = False,False
+    while not (res and res2[0]):
+        q = robot.shootRandomConfig ()
+        res,q2,err = graph.applyNodeConstraints ('free', q1)
+        res2 = robot.isConfigValid (q2)
+    q_goal.append(q2)
+    for i in range(len(edge)) :
+        path = False
+        res =  False
+        while not path:
+            
+            print('new start',i)
+            q1 = robot.shootRandomConfig ()
+            res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q1)
+            if not res: continue
+            res = robot.isConfigValid (q1)
+            if not res: continue
+            inStatePlanner.setEdge(edge[i])
+            pv = inStatePlanner.cproblem.getPathValidation()
+            res, msg = pv.validateConfiguration(q_goal[i])
+            if not res: continue
+            res, msg = pv.validateConfiguration(q1)
+            if not res:continue
+            print(q1)
+            v(q1)
+            try:
+                Path = inStatePlanner.computePath(q_goal[i],[q1])
+            except Exception as e:
+                print('no path this time',e)
+            else:
+                #Path =  inStatePlanner.optimizePath(Path)
+                q_goal.append(q1) 
+                #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
+                print(q_goal)
+                path = True
+                vector  = Path.asVector()
+                pid = ps.client.basic.problem.addPath(vector)
+                print('find path for edge %d'%(i))
+        if i ==3:
+            res = False
+            res2 = [False]
+            while not (res and res2[0]):
+                q = robot.shootRandomConfig ()
+                res,q1,err = graph.applyNodeConstraints ('vertical', q_final)
+                res2 = robot.isConfigValid (q1) 
+            res = False
+            res2 = [False]
+            while not (res and res2[0]):
+                q = robot.shootRandomConfig ()
+                res,q2,err = graph.applyNodeConstraints ('free', q1)
+                res2 = robot.isConfigValid (q2)
+            q_goal.append(q2)   
+            for j in range(len(edge)) :
+                path = False
+                res =  False
+                while not path:
+                    #if j != 3: not robust
+            
+                        print('new start for second part',j)
+                        q1 = robot.shootRandomConfig ()
+                        res,q1,err = graph.generateTargetConfig (edge[j], q_goal[j+5],q1)
+                        if not res: continue
+                        res = robot.isConfigValid (q1)
+                        if not res: continue
+                        inStatePlanner.setEdge(edge[j])
+                        pv = inStatePlanner.cproblem.getPathValidation()
+                        res, msg = pv.validateConfiguration(q_goal[j+5])
+                        if not res: continue
+                        res, msg = pv.validateConfiguration(q1)
+                        if not res:continue
+                        print(q1)
+                        v(q1)
+                        try:
+                            Path = inStatePlanner.computePath(q_goal[j+5],[q1])
+                        except Exception as e:
+                            print('no path this time',e)
+                        else: 
+                        #Path = inStatePlanner.optimizePath(Path)
+                            q_goal.append(q1) 
+                #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
+                            print(q_goal)
+                            path = True
+                            Path = Path.reverse()
+                            vector  = Path.asVector()
+                            pid = ps.client.basic.problem.addPath(vector)
+                            print('find path for edge %d'%(j))
+            inStatePlanner.setEdge('transfer')
+            Path = inStatePlanner.computePath(q_goal[4],[q_goal[9]])
+                            #Path = inStatePlanner.optimizePath(Path)
+            vector  = Path.asVector()
+            pid = ps.client.basic.problem.addPath(vector)
+            list = [i for i in range(1,9)]
+            list[3:8] =list[7:2:-1]
+            for i in list:
+                ps.client.basic.problem.concatenatePath(0,i) """
+        #ps.addPathOptimizer('SimpleTimeParameterization')
+        #ps.optimizePath(0)
+
+    """else:
+                    q_goal.append(q_goal[4])
+                    Path = inStatePlanner.computePath(q_goal[9],[q_goal[8]])
+                    vector  = Path.asVector()
+                    pid = ps.client.basic.problem.addPath(vector)
+
+        list = [i for i in range(1,8)]
+        list[3:7] =list[6:2:-1]
+        for i in list:
+            ps.client.basic.problem.concatenatePath(0,i) """
 ###path
-""" for i in range(len(edge)):
+    """ for i in range(len(edge)):
     inStatePlanner.setEdge(edge[i])
     pv = inStatePlanner.cproblem.getPathValidation()
     res, msg = pv.validateConfiguration(q_goal[i])
@@ -669,4 +868,4 @@ for i in range(5):
         
         if j==5:
             continue
-        print(j)       """
+        print(j) """
