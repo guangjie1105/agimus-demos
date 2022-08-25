@@ -238,14 +238,7 @@ def createConstraintGraph():
     graph = ConstraintGraph(robot, 'graph2')
     #rules = [Rule ([""], [""], True)]
     factory = ConstraintGraphFactory(graph)
-    #factory.setGrippers(["ur10e/gripper",])
-    #factory.environmentContacts (envSurfaces)
-    #factory.setObjects(['part',], [part_handles],objContactSurfaces )
-    #factory.setRules (rules)
-    #factory.generate()
-    """ print('factory.handle',factory.handles)
-    print('all_handles ',all_handles )
-    print('part_handles',part_handles) """
+
     
     
     #Constraint by hand,because the pose of part is offered by vision system so do not need placement constraint
@@ -331,7 +324,6 @@ def createConstraintGraph():
     sm.setSecurityMarginBetween("ur10e", "part", 0.015)
     sm.setSecurityMarginBetween("ur10e", "ur10e", 0)
     sm.setSecurityMarginBetween("ur10e", "lip", 0.05)
-    #sm.setSecurityMarginBetween("lip", "box", 5)   ####qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
     sm.defaultMargin = 0.01
     sm.apply() # try
     ##deactive collision between "lip" and"wrist_3_joint"
@@ -347,7 +339,7 @@ def createConstraintGraph():
         cedge.setSecurityMarginForPair(robot.jointNames.index('lid/root_joint')+1, \
         robot.jointNames.index('ur10e/wrist_3_joint')+1 ,float('-inf')) 
         print(i)
-    graph.initialize()
+    graph.initialize()  # after set Security margins
     # Set weights of levelset edges to 0
     for e in graph.edges.keys():
         if e[-3:] == "_ls" and graph.getWeight(e) != -1:
@@ -474,7 +466,8 @@ y_min = min(forward_tool[1])   ##attation the area is rectangle so is not very p
 
 
 
-#### This part is to read and transform the data from vision system
+""" ####"#### 
+### This part is to read and transform the data from vision system
 
 import transforms3d
 import pandas as pd
@@ -561,19 +554,8 @@ for i in range(len(part_world)):
     go.append(conf)
     v(conf)
     time.sleep(0.5)
-
-""" neutral_pose = [0, -pi/2, 0.89*pi,-pi/2, -pi, 0.5]
-bin_des =  [0.6,0.5,0.00003,0,0,0,1]
-for i in range (len(coor_part)):
-    init_config =neutral_pose + coor_part[i]
-    ps.setInitialConfig(init_config)
-    goal_config = neutral_pose + bin_des
-    ps.resetGoalConfigs()
-    ps.addGoalConfig(goal_config)
-    ps.solve() """
-
-
-
+#######
+## """
 
 
 ##test
@@ -586,10 +568,6 @@ if not res2[0]:
 final = res2[1]  """
 
 #ps.addPathOptimizer("SimpleTimeParameterization")
-""" graph.setWeight('Loop | f',0)
-graph.setWeight('Loop | 0-0',900000000)
-graph.setWeight('ur10e/gripper < part/handle_00 | 0-0',1)
-graph.setWeight('ur10e/gripper > part/handle_00 | f',1) """
 ps.setTimeOutPathPlanning(30)
 
 """ for i in range(len(go)):
@@ -747,119 +725,11 @@ def instatePath(q_start,q_final):
             list[3:8] =list[7:2:-1]
             for i in list:
                 ps.client.basic.problem.concatenatePath(0,i)
-    """ res2 = [False]
-    while not (res and res2[0]):
-        q = robot.shootRandomConfig ()
-        res,q1,err = graph.applyNodeConstraints ('vertical', go[4])
-        res2 = robot.isConfigValid (q1) 
-    res,res2 = False,False
-    while not (res and res2[0]):
-        q = robot.shootRandomConfig ()
-        res,q2,err = graph.applyNodeConstraints ('free', q1)
-        res2 = robot.isConfigValid (q2)
-    q_goal.append(q2)
-    for i in range(len(edge)) :
-        path = False
-        res =  False
-        while not path:
-            
-            print('new start',i)
-            q1 = robot.shootRandomConfig ()
-            res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q1)
-            if not res: continue
-            res = robot.isConfigValid (q1)
-            if not res: continue
-            inStatePlanner.setEdge(edge[i])
-            pv = inStatePlanner.cproblem.getPathValidation()
-            res, msg = pv.validateConfiguration(q_goal[i])
-            if not res: continue
-            res, msg = pv.validateConfiguration(q1)
-            if not res:continue
-            print(q1)
-            v(q1)
-            try:
-                Path = inStatePlanner.computePath(q_goal[i],[q1])
-            except Exception as e:
-                print('no path this time',e)
-            else:
-                #Path =  inStatePlanner.optimizePath(Path)
-                q_goal.append(q1) 
-                #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
-                print(q_goal)
-                path = True
-                vector  = Path.asVector()
-                pid = ps.client.basic.problem.addPath(vector)
-                print('find path for edge %d'%(i))
-        if i ==3:
-            res = False
-            res2 = [False]
-            while not (res and res2[0]):
-                q = robot.shootRandomConfig ()
-                res,q1,err = graph.applyNodeConstraints ('vertical', q_final)
-                res2 = robot.isConfigValid (q1) 
-            res = False
-            res2 = [False]
-            while not (res and res2[0]):
-                q = robot.shootRandomConfig ()
-                res,q2,err = graph.applyNodeConstraints ('free', q1)
-                res2 = robot.isConfigValid (q2)
-            q_goal.append(q2)   
-            for j in range(len(edge)) :
-                path = False
-                res =  False
-                while not path:
-                    #if j != 3: not robust
-            
-                        print('new start for second part',j)
-                        q1 = robot.shootRandomConfig ()
-                        res,q1,err = graph.generateTargetConfig (edge[j], q_goal[j+5],q1)
-                        if not res: continue
-                        res = robot.isConfigValid (q1)
-                        if not res: continue
-                        inStatePlanner.setEdge(edge[j])
-                        pv = inStatePlanner.cproblem.getPathValidation()
-                        res, msg = pv.validateConfiguration(q_goal[j+5])
-                        if not res: continue
-                        res, msg = pv.validateConfiguration(q1)
-                        if not res:continue
-                        print(q1)
-                        v(q1)
-                        try:
-                            Path = inStatePlanner.computePath(q_goal[j+5],[q1])
-                        except Exception as e:
-                            print('no path this time',e)
-                        else: 
-                        #Path = inStatePlanner.optimizePath(Path)
-                            q_goal.append(q1) 
-                #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
-                            print(q_goal)
-                            path = True
-                            Path = Path.reverse()
-                            vector  = Path.asVector()
-                            pid = ps.client.basic.problem.addPath(vector)
-                            print('find path for edge %d'%(j))
-            inStatePlanner.setEdge('transfer')
-            Path = inStatePlanner.computePath(q_goal[4],[q_goal[9]])
-                            #Path = inStatePlanner.optimizePath(Path)
-            vector  = Path.asVector()
-            pid = ps.client.basic.problem.addPath(vector)
-            list = [i for i in range(1,9)]
-            list[3:8] =list[7:2:-1]
-            for i in list:
-                ps.client.basic.problem.concatenatePath(0,i) """
+   
         #ps.addPathOptimizer('SimpleTimeParameterization')
         #ps.optimizePath(0)
 
-    """else:
-                    q_goal.append(q_goal[4])
-                    Path = inStatePlanner.computePath(q_goal[9],[q_goal[8]])
-                    vector  = Path.asVector()
-                    pid = ps.client.basic.problem.addPath(vector)
 
-        list = [i for i in range(1,8)]
-        list[3:7] =list[6:2:-1]
-        for i in list:
-            ps.client.basic.problem.concatenatePath(0,i) """
 ###path
     """ for i in range(len(edge)):
     inStatePlanner.setEdge(edge[i])
@@ -878,6 +748,8 @@ for i in range(5):
             continue
         print(j) """
 #### To test Security margin
+[0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666, 0, 0, 0.1, 0, 0, 0, 1]
+
 res,res2 = False,False
 while not (res and res2[0]):
     q = robot.shootRandomConfig ()
