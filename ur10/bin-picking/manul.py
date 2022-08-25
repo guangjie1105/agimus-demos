@@ -53,11 +53,6 @@ class AprilTagPlank:
     urdfFilename = "package://agimus_demos/urdf/april-tag-plank.urdf"
     srdfFilename = "package://agimus_demos/srdf/april-tag-plank.srdf"
     rootJointType = "freeflyer"
-
-#class Bin:
- #   urdfFilename = "package://agimus_demos/urdf/bin.urdf"
-  #  srdfFilename = "package://agimus_demos/srdf/bin.srdf"
-  #  rootJointType = "freeflyer"
 class Bin (object):
   rootJointType = 'freeflyer'
   packageName = 'agimus_demos'
@@ -80,7 +75,7 @@ class Box:
 class Lip:
     urdfFilename = "package://agimus_demos/urdf/lip.urdf"
     srdfFilename = "package://agimus_demos/srdf/lip.srdf"
-    rootJointType = "anchor"
+    rootJointType = "freeflyer"
 
 # parse arguments
 defaultContext = "corbaserver"
@@ -175,8 +170,9 @@ robot.setJointBounds('part/root_joint', [-6,6, -6 ,6, -0.05, 8])
 print("Part loaded")
 
 vf.loadObjectModel (Lip, 'lid')###change the name.
-
-
+robot.setJointBounds('lid/root_joint', [-6,6, -6 ,6, -0.05, 8])
+ps.createLockedJoint('locked-lid','lid/root_joint',[0,0,0.11,0,0,0,1])
+print('lid loaded')
 robot.client.manipulation.robot.insertRobotSRDFModel\
     ("ur10e", "package://agimus_demos/srdf/ur10_robot.srdf")
 
@@ -297,6 +293,8 @@ def createConstraintGraph():
     #Node constraints
     #graph.addConstraints(node='vertical',
                        # constraints = Constraints(numConstraints=['vertical'])) 
+    graph.addConstraints(graph = True,
+                        constraints = Constraints(numConstraints=['locked-lid']))
     graph.addConstraints(node='preplace',
                         constraints = Constraints(numConstraints=['part-above-box','grasp']))
    
@@ -333,17 +331,22 @@ def createConstraintGraph():
     sm.setSecurityMarginBetween("ur10e", "part", 0.015)
     sm.setSecurityMarginBetween("ur10e", "ur10e", 0)
     sm.setSecurityMarginBetween("ur10e", "lip", 0.05)
+    #sm.setSecurityMarginBetween("lip", "box", 5)   ####qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
     sm.defaultMargin = 0.01
     sm.apply() # try
-    ##deactive collision between "lip" and"tool_tip_link"
+    ##deactive collision between "lip" and"wrist_3_joint"
     cproblem = wd(ps.client.basic.problem.getProblem())
     cgraph = wd(cproblem.getConstraintGraph())
-    all_name = list(graph.edges.keys())
-    edge_margin =  ['approach-box','put-part-down','move-gripper-up','transfer']
-    name =  [i for i in all_name if i not in edge_margin]
-    """     for i in name:
-        cedge = wd(cgraph.get(graph.edges[name]))
-        cedge.setSecurityMarginForPair(8+1, 9+1,float('-inf'))  """
+    all_name = [key for key in graph.edges]
+    edge_active =  ['transfer','approach-box','put-part-down','move-gripper-up','move-gripper-away']
+    name =  [i for i in all_name if i not in edge_active]
+    print(name)
+    ## deactive lid collision test through the edges pick up part 
+    for i in name:
+        cedge = wd(cgraph.get(graph.edges[i]))
+        cedge.setSecurityMarginForPair(robot.jointNames.index('lid/root_joint')+1, \
+        robot.jointNames.index('ur10e/wrist_3_joint')+1 ,float('-inf')) 
+        print(i)
     graph.initialize()
     # Set weights of levelset edges to 0
     for e in graph.edges.keys():
@@ -413,7 +416,6 @@ if useFOV:
     isClogged = lambda x : ur10_fov.clogged(x, robot, featuress)
     pg.setIsClogged(isClogged)
     visibleFeatures = lambda x : ur10_fov.visible(x, robot, featuress)
-
 ### DEMO
 
 def getDoableHoles():
@@ -472,9 +474,9 @@ y_min = min(forward_tool[1])   ##attation the area is rectangle so is not very p
 
 
 
+#### This part is to read and transform the data from vision system
 
-
-""" import transforms3d
+import transforms3d
 import pandas as pd
 data = pd.read_csv('E0_0d.txt',header=None)
 colo = data.shape[1]                            
@@ -555,10 +557,10 @@ for i in range (len(coor_part)):
 go = []
 for i in range(len(part_world)):
     neutral_pose = [0, -pi/2, 0.89*pi,-pi/2, -pi, 0.5]
-    conf = neutral_pose + part_world[i]
+    conf = neutral_pose + part_world[i]+[0,0,0.1,0,0,0,1]   ##arm + part + lid
     go.append(conf)
     v(conf)
-    time.sleep(0.5) """
+    time.sleep(0.5)
 
 """ neutral_pose = [0, -pi/2, 0.89*pi,-pi/2, -pi, 0.5]
 bin_des =  [0.6,0.5,0.00003,0,0,0,1]
@@ -626,7 +628,7 @@ ps.setInitialConfig(go)
 ps.resetGoalConfigs()
 ps.addGoalConfig(end) """
 
-go = [[0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0432209178713296, 0.20583790467945282, 0.2522109607843137, 0.010857436013281468, -0.007109644686263878, 0.99955548479711, -0.026840302674650103], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0426075142635602, 0.028049295747804535, 0.25237582352941174, 0.017230991582646883, -0.0030211363131261966, 0.999758171303341, -0.013325335892780057], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0397627870322104, -0.1266349005619249, 0.2505982156862745, 0.01367315419487967, -0.01359126426655792, 0.9995505107663977, -0.02295863272568867], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9296967464201046, 0.2067981065192473, 0.25364501960784314, 0.004667391514166578, -0.006208225942286833, 0.9999081748890755, -0.011104736696600913], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9278283302527075, -0.1286156436428715, 0.25210409803921563, 0.007780960745240349, -0.014421554984323032, 0.999759562753898, -0.014570246526740528], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.8232787691260659, 0.21042481641773064, 0.25378105882352936, 0.000648084977482323, -0.007518255527237134, 0.9999302406011185, -0.009086789921561894], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.822255898222331, 0.04135489357405592, 0.25374954901960783, -0.003596721462689725, -0.004919289131052951, 0.9997276271867958, -0.022528551409800462], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.820149912691993, -0.12245399632326899, 0.2522424901960784, 0.00021183661483716693, -0.013426393636156594, 0.9998216893511835, -0.013276919150201618]]
+#go = [[0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0432209178713296, 0.20583790467945282, 0.2522109607843137, 0.010857436013281468, -0.007109644686263878, 0.99955548479711, -0.026840302674650103], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0426075142635602, 0.028049295747804535, 0.25237582352941174, 0.017230991582646883, -0.0030211363131261966, 0.999758171303341, -0.013325335892780057], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0397627870322104, -0.1266349005619249, 0.2505982156862745, 0.01367315419487967, -0.01359126426655792, 0.9995505107663977, -0.02295863272568867], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9296967464201046, 0.2067981065192473, 0.25364501960784314, 0.004667391514166578, -0.006208225942286833, 0.9999081748890755, -0.011104736696600913], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9278283302527075, -0.1286156436428715, 0.25210409803921563, 0.007780960745240349, -0.014421554984323032, 0.999759562753898, -0.014570246526740528], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.8232787691260659, 0.21042481641773064, 0.25378105882352936, 0.000648084977482323, -0.007518255527237134, 0.9999302406011185, -0.009086789921561894], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.822255898222331, 0.04135489357405592, 0.25374954901960783, -0.003596721462689725, -0.004919289131052951, 0.9997276271867958, -0.022528551409800462], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.820149912691993, -0.12245399632326899, 0.2522424901960784, 0.00021183661483716693, -0.013426393636156594, 0.9998216893511835, -0.013276919150201618]]
 from agimus_demos import InStatePlanner
 inStatePlanner = InStatePlanner(ps, graph)
 inStatePlanner.maxIterPathPlanning = 66
@@ -638,7 +640,7 @@ inStatePlanner.optimizerTypes = ['SimpleTimeParameterization']
 ##def inStatePlanner(go,q_final):
 edge = ['approach-part','grasp-part','take-part-up','take-part-away']
 
-q_final = [0, -1.5707963267948966, 2.0, -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.8, 0.05, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666]
+q_final = [0, -1.5707963267948966, 2.0, -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.8, 0.05, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666,0,0,0,0,0,0,1]
 ###The function uses inStatePlanner to generate path followes given state and edge,at last get concatenated path PID 0
 def instatePath(q_start,q_final):
     q_goal = []
@@ -658,18 +660,24 @@ def instatePath(q_start,q_final):
             print('new start',i)
             q1 = robot.shootRandomConfig ()
             res,q1,err = graph.generateTargetConfig (edge[i], q_goal[i],q1)
+            print('for generate',res)
             if not res: continue
-            res = robot.isConfigValid (q1)
-            if not res: continue
+            """ res = robot.isConfigValid (q1)
+            print('for valid q1',res)
+            if not res: continue """
             inStatePlanner.setEdge(edge[i])
-            pv = inStatePlanner.cproblem.getPathValidation()
+            pv = inStatePlanner.cedge.getPathValidation()
+            #pv = inStatePlanner.cproblem.getPathValidation()
             res, msg = pv.validateConfiguration(q_goal[i])
+            print('for validate q_goal',res,msg)
             if not res: continue
             res, msg = pv.validateConfiguration(q1)
+            print('q1',res,msg)
             if not res:continue
             print(q1)
             v(q1)
             try:
+                print(q_goal[i],q1)
                 Path = inStatePlanner.computePath(q_goal[i],[q1])
             except Exception as e:
                 print('no path this time',e)
@@ -869,3 +877,23 @@ for i in range(5):
         if j==5:
             continue
         print(j) """
+#### To test Security margin
+res,res2 = False,False
+while not (res and res2[0]):
+    q = robot.shootRandomConfig ()
+    res,q1,err = graph.applyNodeConstraints ('free', go[4])
+    res2 = robot.isConfigValid (q1)
+
+res,res2 = False,False
+while not (res and res2[0]):
+    q = robot.shootRandomConfig ()
+    res,q2,err = graph.generateTargetConfig ('approach-part', q1, q)
+    res2 = robot.isConfigValid (q2)
+
+res,res2 = False,False
+while not res:
+    q = robot.shootRandomConfig ()
+    res,q3,err = graph.generateTargetConfig ('grasp-part', q2, q)
+inStatePlanner.setEdge(edge[1])
+pv = inStatePlanner.cedge.getPathValidation()
+pv.validateConfiguration(q3)
