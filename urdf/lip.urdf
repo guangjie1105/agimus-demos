@@ -14,7 +14,7 @@
     <visual>
       <origin xyz="0.86 0 0.195" rpy="0 0 0" />
       <geometry>
-        <box size="0.52 0.82 0.2"/>
+        <box size="0.52 0.82 0.002"/>
       </geometry>
       <material name="red">
         <color rgba="1 0 0 1"/>
@@ -24,7 +24,7 @@
     <collision>
       <origin xyz="0.86 0 0.195" rpy="0 0 0" />
       <geometry>
-        <box size="0.52 0.82 0.2"/>
+        <box size="0.52 0.82 0.002"/>
       </geometry>
     </collision>
   </link>
