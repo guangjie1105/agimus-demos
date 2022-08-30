@@ -17,6 +17,15 @@
      <origin xyz="-1.4 0.0 0.0" rpy="0.0 0.0 0.0" />
    </joint>
 
+  <joint name="cam_joint" type="fixed">
+     <parent link="world" />
+     <child link = "cam_link" />
+     <origin xyz="0.86 0.0 0.295" rpy="0.0 0.0 -1.5707" />
+  </joint>
+   <link name="cam_link">
+   </link>
+    
+    
     <link name="support_link">
       <inertial>
         <mass value="200"/>
@@ -24,15 +33,15 @@
         <inertia ixx="50"  ixy="0"  ixz="0" iyy="50" iyz="0" izz="50" />
       </inertial>
       <visual>
-        <origin xyz="-0.4 0 0.3"/>
+        <origin xyz="-0.4 0 0.25"/>
         <geometry>
-	        <box size="1.0 1.2 0.6"/>
+	        <box size="1.0 1.2 0.5"/>
         </geometry>
       </visual>
       <collision>
-        <origin xyz="-0.4 0 0.3"/>
+        <origin xyz="-0.4 0 0.25"/>
         <geometry>
-	        <box size="1.0 1.2 0.6"/>
+	        <box size="1.0 1.2 0.5"/>
         </geometry>
       </collision>
     </link>
@@ -46,7 +55,7 @@
     <joint name="robot_joint" type="fixed">
       <parent link="support_link" />
       <child link = "base_link" />
-      <origin xyz="0.0 0.0 0.60" rpy="0.0 0.0 -1.5707963" />
+      <origin xyz="0.0 0.0 0.50" rpy="0.0 0.0 -1.5707963" />
     </joint>
 
   </xacro:macro>
