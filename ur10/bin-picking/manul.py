@@ -24,6 +24,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from cgi import test
 from http.client import REQUESTED_RANGE_NOT_SATISFIABLE
 from importlib.resources import path
 import sys, argparse, numpy as np, time, rospy
@@ -748,12 +749,12 @@ for i in range(5):
             continue
         print(j) """
 #### To test Security margin
-[0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666, 0, 0, 0.1, 0, 0, 0, 1]
+ini = [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666, 0, 0, 0.1, 0, 0, 0, 1]
 
 res,res2 = False,False
 while not (res and res2[0]):
     q = robot.shootRandomConfig ()
-    res,q1,err = graph.applyNodeConstraints ('free', go[4])
+    res,q1,err = graph.applyNodeConstraints ('free', ini)
     res2 = robot.isConfigValid (q1)
 
 res,res2 = False,False
