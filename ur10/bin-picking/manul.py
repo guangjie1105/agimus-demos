@@ -263,7 +263,7 @@ def createConstraintGraph():
     graph.createEdge ('grasps', 'grasps', 'transfer', 1, 'grasps')
     ps.createTransformationConstraint ('grasp', 'ur10e/gripper', 'part/handle_link',
                                    [0.02,0,0.0,0, 0, 0, 1],
-                                   [True, True, True, False,True,True])
+                                   [True, True, True, True,True,True])
     ps.createTransformationConstraint ('part-above-box','part/base_link','',
                                    [0,0,-0.35,0, 0, 0, 1],
                                    [False, False, True, False, False,False])
@@ -276,7 +276,7 @@ def createConstraintGraph():
                                    [True, True, False, True,True,True,])
     ps.setConstantRightHandSide ('movement-vertical', False) 
     ps.createTransformationConstraint ('gripper-above-part', 'ur10e/gripper', 'part/handle_link',
-                                   [0.18,0,0,0,0,0,1], [True,True,True,False,True,True])    ##x y z w
+                                   [0.18,0,0,0,0,0,1], [True,True,True,True,True,True])    ##x y z w
     #ps.createTransformationConstraint ('vertical','part/base_link','',
      #                              [0,0,-0.35,0, 0, 0, 1],
       #                             [False, False, False, True, True, False])
@@ -452,9 +452,9 @@ v(q1) """
 """ forward_tool = [[],[]]
 for i in range(10000):
     res1,res = False,False
-    while not res:
+    while not (res and q6[8]<0.03):
         qrand = robot.shootRandomConfig()
-        res1, q6, error = graph.applyNodeConstraints ('ur10e/gripper > part/handle_00 | f_intersec', qrand)
+        res1, q6, error = graph.applyNodeConstraints ('intersec', qrand)
         if not res1:
             continue
         res = crobot.setCurrentConfiguration(q6)
@@ -467,7 +467,7 @@ y_min = min(forward_tool[1])   ##attation the area is rectangle so is not very p
 
 
 
-""" ####"#### 
+####"#### 
 ### This part is to read and transform the data from vision system
 
 import transforms3d
@@ -543,7 +543,7 @@ for i in range (len(coor_part)):
 
     transformed_pose = transform_pose(my_pose, "cam_link", "world")
     #HPP--x y z w
-    coor = [(transformed_pose.position.x)+0.08,transformed_pose.position.y,(transformed_pose.position.z)+0.05,\
+    coor = [(transformed_pose.position.x)+0.08,transformed_pose.position.y,(transformed_pose.position.z)+0.01,\
         transformed_pose.orientation.x,transformed_pose.orientation.y,transformed_pose.orientation.z,\
             transformed_pose.orientation.w]
     part_world.append(coor)
@@ -556,7 +556,7 @@ for i in range(len(part_world)):
     v(conf)
     time.sleep(0.5)
 #######
-## """
+## 
 
 
 ##test
@@ -570,42 +570,6 @@ final = res2[1]  """
 
 #ps.addPathOptimizer("SimpleTimeParameterization")
 ps.setTimeOutPathPlanning(30)
-
-""" for i in range(len(go)):
-    res1 = ps.client.manipulation.problem.applyConstraints(graph.nodes['free'],go[i])
-    if not res1[0]:
-        raise Exception ('Init configuration %s could not be projected.' % i)
-        continue 
-    ini = go[i]
-    ps.resetGoalConfigs()
-    ps.setInitialConfig(ini)
-    ps.addGoalConfig(final)
-    ps.solve()
-Nb_path = ps.numberPaths()
-for i in range(1,Nb_path):
-    if i%4== 0:
-        ps.concatenatePath(0,i)   """
-
-
-
-
-#test for box graph
-"""
-go =[2.444809329135643e-18, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 1.1, -0.02781554796245951, 0.09600101434050495, 1.3267600356985338e-06, 3.518114082643234e-06, 0.9999737254237396, -0.0072490308338324025]
-
-res2 = ps.client.manipulation.problem.applyConstraints(graph.nodes['free_box'],go)
-
-go = res2[1]
-
-
-end = [2.775736622161967e-20, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.2, -0.45, 0.00095740333962464, 1.8704455211853133e-20, 3.253825530225867e-20, -0.2766468647918515, 0.9609716500505303]
-
-res3 = ps.client.manipulation.problem.applyConstraints(graph.nodes['free'],end)
-end = res3[1]
-
-ps.setInitialConfig(go)
-ps.resetGoalConfigs()
-ps.addGoalConfig(end) """
 
 #go = [[0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0432209178713296, 0.20583790467945282, 0.2522109607843137, 0.010857436013281468, -0.007109644686263878, 0.99955548479711, -0.026840302674650103], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0426075142635602, 0.028049295747804535, 0.25237582352941174, 0.017230991582646883, -0.0030211363131261966, 0.999758171303341, -0.013325335892780057], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 1.0397627870322104, -0.1266349005619249, 0.2505982156862745, 0.01367315419487967, -0.01359126426655792, 0.9995505107663977, -0.02295863272568867], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9296967464201046, 0.2067981065192473, 0.25364501960784314, 0.004667391514166578, -0.006208225942286833, 0.9999081748890755, -0.011104736696600913], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666], [0, -1.5707963267948966, 2., -1.5707963267948966, 0, 0.5, 0.9278283302527075, -0.1286156436428715, 0.25210409803921563, 0.007780960745240349, -0.014421554984323032, 0.999759562753898, -0.014570246526740528], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.8232787691260659, 0.21042481641773064, 0.25378105882352936, 0.000648084977482323, -0.007518255527237134, 0.9999302406011185, -0.009086789921561894], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.822255898222331, 0.04135489357405592, 0.25374954901960783, -0.003596721462689725, -0.004919289131052951, 0.9997276271867958, -0.022528551409800462], [0, -1.5707963267948966, 2, -1.5707963267948966, -3.141592653589793, 0.5, 0.820149912691993, -0.12245399632326899, 0.2522424901960784, 0.00021183661483716693, -0.013426393636156594, 0.9998216893511835, -0.013276919150201618]]
 from agimus_demos import InStatePlanner
@@ -621,7 +585,7 @@ edge = ['approach-part','grasp-part','take-part-up','take-part-away']
 
 q_final = [0, -1.5707963267948966, 2.0, -1.5707963267948966, 0, 0.5, 0.9349991154141712, 0.8, 0.05, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666,0,0,0,0,0,0,1]
 ###The function uses inStatePlanner to generate path followes given state and edge,at last get concatenated path PID 0
-def instatePath(q_start,q_final):
+def instatePath(q_start,q_final,a=0):
     q_goal = []
     edge = ['approach-part','grasp-part','take-part-up','take-part-away']
     res = False    
@@ -651,7 +615,7 @@ def instatePath(q_start,q_final):
             print('for validate q_goal',res,msg)
             if not res: continue
             res, msg = pv.validateConfiguration(q1)
-            print('q1',res,msg)
+            #print('q1',res,msg)
             if not res:continue
             print(q1)
             v(q1)
@@ -689,65 +653,51 @@ def instatePath(q_start,q_final):
                 while not path:
                     #if j != 3: not robust
             
-                        print('new start for second part',j)
-                        q1 = robot.shootRandomConfig ()
-                        res,q1,err = graph.generateTargetConfig (edge[j], q_goal[j+5],q1)
-                        if not res: continue
-                        res = robot.isConfigValid (q1)
-                        if not res: continue
-                        inStatePlanner.setEdge(edge[j])
-                        pv = inStatePlanner.cproblem.getPathValidation()
-                        res, msg = pv.validateConfiguration(q_goal[j+5])
-                        if not res: continue
-                        res, msg = pv.validateConfiguration(q1)
-                        if not res:continue
-                        print(q1)
-                        v(q1)
-                        try:
-                            Path = inStatePlanner.computePath(q_goal[j+5],[q1])
-                        except Exception as e:
-                            print('no path this time',e)
-                        else: 
+                    print('new start for second part',j)
+                    q1 = robot.shootRandomConfig ()
+                    res,q1,err = graph.generateTargetConfig (edge[j], q_goal[j+5],q1)
+                    if not res: continue
+                    res = robot.isConfigValid (q1)
+                    if not res: continue
+                    inStatePlanner.setEdge(edge[j])
+                    pv = inStatePlanner.cproblem.getPathValidation()
+                    res, msg = pv.validateConfiguration(q_goal[j+5])
+                    if not res: continue
+                    res, msg = pv.validateConfiguration(q1)
+                    if not res:continue
+                    if j ==3:
+                        q1 = q_goal[4]
+                    print(q1)
+                    v(q1)
+                    try:
+                        Path = inStatePlanner.computePath(q_goal[j+5],[q1])
+                    except Exception as e:
+                        print('no path this time',e)
+                    else: 
                         #Path = inStatePlanner.optimizePath(Path)
-                            q_goal.append(q1) 
+                        q_goal.append(q1) 
                 #Path = inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
-                            print(q_goal)
-                            path = True
-                            Path = Path.reverse()
-                            vector  = Path.asVector()
-                            pid = ps.client.basic.problem.addPath(vector)
-                            print('find path for edge %d'%(j))
-            inStatePlanner.setEdge('transfer')
-            Path = inStatePlanner.computePath(q_goal[4],[q_goal[9]])
+                        print(q_goal)
+                        path = True
+                        Path = Path.reverse()
+                        vector  = Path.asVector()
+                        pid = ps.client.basic.problem.addPath(vector)
+                        print('find path for edge %d'%(j))
+            #inStatePlanner.setEdge('transfer')
+            #Path = inStatePlanner.computePath(q_goal[4],[q_goal[9]])
                             #Path = inStatePlanner.optimizePath(Path)
-            vector  = Path.asVector()
-            pid = ps.client.basic.problem.addPath(vector)
-            list = [i for i in range(1,9)]
+            #vector  = Path.asVector()
+            #pid = ps.client.basic.problem.addPath(vector)
+            list = [i for i in range(1+a*8,a*8+8)]
             list[3:8] =list[7:2:-1]
             for i in list:
-                ps.client.basic.problem.concatenatePath(0,i)
+                ps.client.basic.problem.concatenatePath(a*8,i)
    
         #ps.addPathOptimizer('SimpleTimeParameterization')
         #ps.optimizePath(0)
 
 
-###path
-    """ for i in range(len(edge)):
-    inStatePlanner.setEdge(edge[i])
-    pv = inStatePlanner.cproblem.getPathValidation()
-    res, msg = pv.validateConfiguration(q_goal[i])
-    assert(res)
-    res, msg = pv.validateConfiguration(q_goal[i+1])
-    assert(res)
-    inStatePlanner.computePath(q_goal[i],[q_goal[i+1]])
 
-for i in range(5):
-    print(i)
-    for j in range(8):
-        
-        if j==5:
-            continue
-        print(j) """
 #### To test Security margin
 ini = [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 0.9349991154141712, 0.039512694934721385, 0.2544894705882353, 0.007663720375115889, -0.005089128671218016, 0.9995081203537567, -0.02998141935065666, 0, 0, 0.1, 0, 0, 0, 1]
 
@@ -770,3 +720,14 @@ while not res:
 inStatePlanner.setEdge(edge[1])
 pv = inStatePlanner.cedge.getPathValidation()
 pv.validateConfiguration(q3)
+###Test for muitiple object
+
+goal = [go[1],go[3]]
+q_final = [0, -1.5707963267948966, 2.796017461694916, -1.5707963267948966, -3.141592653589793, 0.5, 1.0432209178713296, 0.8, 0.03, 0.010857436013281468, -0.007109644686263878, 0.99955548479711, -0.026840302674650103, 0, 0, 0.1, 0, 0, 0, 1]
+
+for i in range(len(goal)):
+    instatePath(goal[i],q_final,a = i)
+Nb_path = ps.numberPaths()
+for i in range(1,Nb_path):
+    if i%8== 0:
+        ps.concatenatePath(0,i)  
